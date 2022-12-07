@@ -19,32 +19,51 @@ options = webdriver.ChromeOptions()
 options.add_argument('lang=ko_KR')
 driver = webdriver.Chrome('./chromedriver.exe', options=options)
 
+review_button_xpath = '//*[@id="movieEndTabMenu"]/li[6]/a'              # xpath가 고정인 경우에 for문 안에서 계속 변수생성할 필요가 없으므로 for문밖으로 빼줌
+review_num_path = '//*[@id="reviewTab"]/div/div/div[2]/span/em'         # xpath가 고정인 경우에 for문 안에서 계속 변수생성할 필요가 없으므로 for문밖으로 빼줌
+review_xpath = '//*[@id="content"]/div[1]/div[4]/div[1]/div[4]'     # xpath가 고정인 경우에 for문 안에서 계속 변수생성할 필요가 없으므로 for문밖으로 빼줌
 
 your_year = 2022
-for i in range(1, 32): # page
-    url = 'https://movie.naver.com/movie/sdb/browsing/bmovie_open.naver?open={}&page={}'.format(your_year, i)
+for page in range(1, 32): # page
+    url = 'https://movie.naver.com/movie/sdb/browsing/bmovie.naver?open={}&page={}'.format(your_year, page)
     titles = []
     reviews = []
     try:
-        for j in range(1, 21): # 영화 게시글
+        for movie_title_num in range(1, 21): # 영화 게시글
             driver.get(url)
             time.sleep(0.1)
-            movie_title_xpath = '//*[@id="old_content"]/ul/li[{}]/a'.format(j)
+            movie_title_xpath = '//*[@id="old_content"]/ul/li[{}]/a'.format(movie_title_num)
             title = driver.find_element('xpath', movie_title_xpath).text
+            print('title', title)
             driver.find_element('xpath', movie_title_xpath).click()
             time.sleep(0.1)
             try:
-                review_button_xpath = '//*[@id="movieEndTabMenu"]/li[6]/a'
-                driver.find_element('xpath',review_button_xpath).click()
+                driver.find_element('xpath', review_button_xpath).click()
                 time.sleep(0.1)
-                for k in range(1, 11): # 리뷰 게시글
-                    review_title_xpath = '//*[@id="reviewTab"]/div/div/ul/li[{}]/a/strong'.format(k)
-                    driver.find_element('xpath', review_title_xpath).click()
+                review_num = driver.find_element('xpath', review_num_path).text
+                review_num = review_num.replace(',', '') # 리뷰가 1000개가 넘어가면 단위표시 ,가 같이 긁어와져 int로 변환이 안됨 >> ,를 제거해야 함
+                review_range = (int(review_num) - 1) // 10 + 1 # 리뷰개수가 0개면 1페이지가 됨
+                if review_range > 3:
+                    review_range = 3
+                for review_page in range(1, review_range + 1):
+                    review_page_button_xpath = '//*[@id="pagerTagAnchor{}"]/span'.format(review_page)
+                    driver.find_element('xpath', review_page_button_xpath).click()
                     time.sleep(0.1)
-                    review_xpath = '//*[@id="content"]/div[1]/div[4]/div[1]/div[4]/div'
-                    review = driver.find_element('xpath', review_xpath).text
-                    print(review)
+                    for review_title_num in range(1, 11): # 리뷰 게시글
+                        review_title_xpath = '//*[@id="reviewTab"]/div/div/ul/li[{}]/a/strong'.format(review_title_num)
+                        driver.find_element('xpath', review_title_xpath).click()
+                        time.sleep(0.1)
+                        try:
+                            review = driver.find_element('xpath', review_xpath).text
+                            titles.append(title)
+                            reviews.append(review)
+                            driver.back()
+                        except:
+                            print('review', page, movie_title_num, review_title_num)
             except:
-                print('error', i, j, k)
+                driver.back()
+                print('review button', page, movie_title_num)
+        df = pd.DataFrame({'titles':titles, 'reviews':reviews})
+        df.to_csv('./crawling_data/reviews_{}_{}page.csv'.format(your_year, page), index=False)
     except:
-        print('error', i, j, k)
+        print('error', page, movie_title_num)
